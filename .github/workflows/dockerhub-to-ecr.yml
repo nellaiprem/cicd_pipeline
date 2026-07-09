@@ -35,11 +35,11 @@ jobs:
 
       - name: Pull image from Docker Hub
         run: |
-          docker pull nellaiprem/swiggy:latest
+          docker pull nellaiprem/webappn:latest
 
       - name: Tag Image
         run: |
-          docker tag nellaiprem/swiggy:latest \
+          docker tag nellaiprem/webappn:latest \
           ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
 
       - name: Push Image
