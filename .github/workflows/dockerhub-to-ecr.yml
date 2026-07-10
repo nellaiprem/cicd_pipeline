@@ -42,16 +42,25 @@ jobs:
       - name: Pull Image from Docker Hub
         run: |
           docker pull nellaiprem/webappn:${{ env.IMAGE_TAG }}
-
-      - name: Run Trivy Vulnerability Scan
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          image-ref: nellaiprem/webappn:${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: 1
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
+    
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release apt-transport-https
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+          gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
+          sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+    
+      - name: Run Trivy Scan
+        run: |
+          trivy image \
+          --severity HIGH,CRITICAL \
+          --ignore-unfixed \
+          --exit-code 1 \
+          nellaiprem/webappn:${{ env.IMAGE_TAG }}
 
       - name: Tag Image for Amazon ECR
         run: |
