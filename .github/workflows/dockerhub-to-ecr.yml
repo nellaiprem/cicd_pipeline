@@ -1,4 +1,4 @@
-name: DockerHub to Amazon ECR
+name: DockerHub to Amazon ECR and Deploy to ECS
 
 on:
   push:
@@ -7,21 +7,27 @@ on:
 
 jobs:
 
+  #########################################################
+  # Job 1 - Push Image to Amazon ECR
+  #########################################################
   push-to-ecr:
 
     runs-on: ubuntu-latest
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
 
     steps:
 
       - name: Checkout Code
         uses: actions/checkout@v4
 
-        # Login to Docker Hub (only required for private images)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,23 +39,28 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Pull image from Docker Hub
+      - name: Pull Image from Docker Hub
         run: |
           docker pull nellaiprem/webappn:latest
 
       - name: Tag Image
         run: |
           docker tag nellaiprem/webappn:latest \
-          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
+          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
-      - name: Push Image
+      - name: Push Image to Amazon ECR
         run: |
           docker push \
-          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
+          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
-############################################################
+      - name: Save Image URI
+        id: image
+        run: |
+          echo "image=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  #########################################################
   # Job 2 - Deploy to ECS Fargate
-  ############################################################
+  #########################################################
   deploy-to-ecs:
 
     needs: push-to-ecr
@@ -80,7 +91,7 @@ jobs:
           container-name: ${{ secrets.CONTAINER_NAME }}
           image: ${{ needs.push-to-ecr.outputs.image }}
 
-      - name: Deploy New Task Definition to ECS
+      - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
