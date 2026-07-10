@@ -61,43 +61,47 @@ jobs:
   #########################################################
   # Job 2 - Deploy to ECS Fargate
   #########################################################
-  deploy-to-ecs:
+ deploy-to-ecs:
 
-    needs: push-to-ecr
+  needs: push-to-ecr
 
-    runs-on: ubuntu-latest
+  runs-on: ubuntu-latest
 
-    steps:
+  steps:
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Download Current Task Definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ secrets.ECS_TASK_DEFINITION }} \
-            --query taskDefinition \
-            > task-definition.json
+    - name: Verify Image URI
+      run: |
+        echo "Image = ${{ needs.push-to-ecr.outputs.image }}"
 
-      - name: Render New Task Definition
-        id: render-task-definition
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ secrets.CONTAINER_NAME }}
-          image: ${{ needs.push-to-ecr.outputs.image }}
+    - name: Download Current Task Definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition ${{ secrets.ECS_TASK_DEFINITION }} \
+          --query taskDefinition \
+          > task-definition.json
 
-      - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          service: ${{ secrets.ECS_SERVICE }}
-          wait-for-service-stability: true
+    - name: Render New Task Definition
+      id: render-task-definition
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ secrets.CONTAINER_NAME }}
+        image: ${{ needs.push-to-ecr.outputs.image }}
 
-      - name: Deployment Completed
-        run: echo "Deployment completed successfully!"
+    - name: Deploy to Amazon ECS
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+      with:
+        task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+        cluster: ${{ secrets.ECS_CLUSTER }}
+        service: ${{ secrets.ECS_SERVICE }}
+        wait-for-service-stability: true
+
+    - name: Deployment Completed
+      run: echo "Deployment completed successfully!"
